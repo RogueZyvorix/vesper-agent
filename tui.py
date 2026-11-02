@@ -12,15 +12,22 @@ from textual.widgets import Footer, Header, Input, OptionList, Static
 from textual.widgets.option_list import Option
 
 from config import (
-    APP_NAME, APP_VERSION, MODELS, WEB_MODEL,
-    SYSTEM_PROMPT, HISTORY_TURNS, set_perf,
+    APP_NAME, APP_VERSION, MODELS, ROLES,
+    SYSTEM_PROMPT, HISTORY_TURNS, set_perf, save_model,
 )
-from llm import ping, stream_chat, summarize, strip_think, extract_profile
+from llm import ping, stream_chat, summarize, strip_think, extract_profile, list_models
 from memory import Memory
 from router import route, needs_web
 from web import web_context, fetch_text
 
 OUT_DIR = Path.home() / "vesper-output"
+
+ROLE_DESC = {
+    "chat": "obrolan umum",
+    "homework": "tugas dan soal",
+    "code": "kode dan script",
+    "web": "jawaban dari web",
+}
 
 BANNER = r"""
 ██╗   ██╗ ███████╗ ███████╗ ██████╗  ███████╗ ██████╗
@@ -33,7 +40,8 @@ BANNER = r"""
 """
 
 HELP = """Perintah:
-  /mode <chat|homework|code|auto>  paksa model (auto = deteksi otomatis)
+  /model                           pilih model per mode (chat, homework, code, web)
+  /mode <chat|homework|code|auto>  paksa mode untuk pesan berikutnya
   /search <query>                  cari di web lalu jawab
   /berita                          cari berita hari ini
   /web <url> [pertanyaan]          baca halaman web lalu jelaskan
@@ -104,6 +112,134 @@ def make_title(text: str, n: int = 40) -> str:
     """Judul otomatis dari pesan pertama sesi."""
     t = " ".join(text.split())
     return t if len(t) <= n else t[:n].rstrip() + "…"
+
+
+class ModelRoleScreen(ModalScreen[str | None]):
+    """Pilih peran (chat, homework, code, web) yang modelnya akan diganti."""
+
+    BINDINGS = [("escape", "close", "Tutup")]
+
+    DEFAULT_CSS = """
+    ModelRoleScreen {
+        align: center middle;
+        background: rgba(0, 0, 0, 0.6);
+    }
+    #rbox {
+        width: 72;
+        height: auto;
+        border: double #f5a524;
+        background: #120e07;
+        padding: 1 2;
+    }
+    #rtitle {
+        color: #f5a524;
+        text-style: bold;
+        margin-bottom: 1;
+    }
+    #rlist {
+        height: auto;
+        background: #120e07;
+        border: none;
+        color: #e8e0cc;
+    }
+    #rlist > .option-list--option-highlighted {
+        background: #3a2a10;
+        color: #ffd27a;
+    }
+    #rhint {
+        color: #8a8270;
+        margin-top: 1;
+    }
+    """
+
+    def compose(self) -> ComposeResult:
+        options = [
+            Option(f"{role:<9} {MODELS[role]}  ({ROLE_DESC[role]})")
+            for role in ROLES
+        ]
+        with Vertical(id="rbox"):
+            yield Static("PILIH MODE YANG MAU DIUBAH MODELNYA", id="rtitle")
+            yield OptionList(*options, id="rlist")
+            yield Static("Klik atau Enter pilih · Esc tutup", id="rhint")
+
+    def on_option_list_option_selected(self, event: OptionList.OptionSelected) -> None:
+        self.dismiss(ROLES[event.option_index])
+
+    def action_close(self) -> None:
+        self.dismiss(None)
+
+
+class ModelPickScreen(ModalScreen[str | None]):
+    """Pilih satu model dari daftar yang sudah terpasang di Ollama."""
+
+    BINDINGS = [("escape", "close", "Kembali")]
+
+    DEFAULT_CSS = """
+    ModelPickScreen {
+        align: center middle;
+        background: rgba(0, 0, 0, 0.6);
+    }
+    #pbox {
+        width: 72;
+        height: auto;
+        max-height: 80%;
+        border: double #f5a524;
+        background: #120e07;
+        padding: 1 2;
+    }
+    #ptitle {
+        color: #f5a524;
+        text-style: bold;
+        margin-bottom: 1;
+    }
+    #plist {
+        height: auto;
+        max-height: 24;
+        background: #120e07;
+        border: none;
+        color: #e8e0cc;
+    }
+    #plist > .option-list--option-highlighted {
+        background: #3a2a10;
+        color: #ffd27a;
+    }
+    #phint {
+        color: #8a8270;
+        margin-top: 1;
+    }
+    #pempty {
+        color: #ff9f43;
+    }
+    """
+
+    def __init__(self, role: str, installed: list[str], current: str):
+        super().__init__()
+        self.role = role
+        self.installed = installed
+        self.current = current
+
+    def compose(self) -> ComposeResult:
+        with Vertical(id="pbox"):
+            yield Static(f"MODEL UNTUK {self.role.upper()}", id="ptitle")
+            if self.installed:
+                yield OptionList(*[Option(name) for name in self.installed], id="plist")
+                yield Static("Klik atau Enter pilih · Esc kembali", id="phint")
+            else:
+                yield Static(
+                    "Belum ada model terpasang. Pasang dulu dengan: ollama pull <nama>",
+                    id="pempty",
+                )
+
+    def on_mount(self) -> None:
+        if self.installed and self.current in self.installed:
+            ol = self.query_one("#plist", OptionList)
+            ol.highlighted = self.installed.index(self.current)
+
+    def on_option_list_option_selected(self, event: OptionList.OptionSelected) -> None:
+        self.dismiss(self.installed[event.option_index])
+
+    def action_close(self) -> None:
+        self.dismiss(None)
 
 
 class SessionScreen(ModalScreen[str | None]):
@@ -314,7 +450,7 @@ class VesperAgentApp(App):
             f"chat    : {short_name(MODELS['chat'])}\n"
             f"homework: {short_name(MODELS['homework'])}\n"
             f"code    : {short_name(MODELS['code'])}\n"
-            f"web     : {short_name(WEB_MODEL)}\n"
+            f"web     : {short_name(MODELS['web'])}\n"
             f"ollama  : {ok}\n"
             f"status  : {busy}"
         )
@@ -333,6 +469,7 @@ class VesperAgentApp(App):
         )
         self.query_one("#p-tools", Static).update(
             f"[bold #f5a524]TOOLS[/]\n"
+            f"/model    pilih model per mode\n"
             f"/search   web search\n"
             f"/berita   berita hari ini\n"
             f"/web      baca halaman\n"
@@ -359,8 +496,10 @@ class VesperAgentApp(App):
             self.action_quit_agent()
         elif cmd == "/help":
             self.add_msg(Text(HELP), "sys")
+        elif cmd == "/model":
+            self.open_model_menu()
         elif cmd == "/mode":
-            if arg in MODELS:
+            if arg in ("chat", "homework", "code"):
                 self.override = arg
                 self.add_msg(Text(f"mode diset ke {arg}"), "sys")
             elif arg in ("", "auto"):
@@ -477,6 +616,32 @@ class VesperAgentApp(App):
         else:
             self.add_msg(Text("perintah tidak dikenal, ketik /help"), "sys")
 
+    # ---------- pilih model ----------
+    def open_model_menu(self) -> None:
+        if self.busy:
+            self.notify("Tunggu jawaban selesai dulu.", severity="warning")
+            return
+        self.push_screen(ModelRoleScreen(), self.on_model_role)
+
+    def on_model_role(self, role: str | None) -> None:
+        """Dipanggil setelah peran dipilih. Lanjut ke daftar model yang terpasang."""
+        if not role:
+            return
+        installed = list_models()
+        self.push_screen(
+            ModelPickScreen(role, installed, MODELS[role]),
+            self._make_pick_callback(role),
+        )
+
+    def _make_pick_callback(self, role: str):
+        def done(name: str | None) -> None:
+            if not name:
+                return
+            save_model(role, name)
+            self.notify(f"{role} sekarang memakai {name}")
+            self.refresh_panels()
+        return done
+
     def set_perf_mode(self, name: str) -> None:
         """Ganti mode performa. Kotak status di sidebar yang menampilkan perubahannya."""
         if self.busy:
@@ -546,7 +711,7 @@ class VesperAgentApp(App):
                     return
                 self.call_from_thread(self.set_web_status, "halaman dibuka")
                 web_ctx = f"[{url}]\n{page}"
-                mode, model = "web", WEB_MODEL
+                mode, model = "web", MODELS["web"]
                 self.call_from_thread(
                     self.add_msg, Text(f"sumber: {url}", style="dim"), "meta"
                 )
@@ -559,7 +724,7 @@ class VesperAgentApp(App):
                 )
                 self.call_from_thread(self.set_web_status, status)
                 if web_ctx:
-                    mode, model = "web", WEB_MODEL
+                    mode, model = "web", MODELS["web"]
                     src_text = "sumber:\n" + "\n".join(f"  - {u}" for u in sources)
                     self.call_from_thread(self.add_msg, Text(src_text, style="dim"), "meta")
                 else:

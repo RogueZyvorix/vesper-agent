@@ -3,7 +3,7 @@ import re
 import ollama
 
 import config
-from config import OLLAMA_HOST, MODELS, WEB_MODEL, KEEP_ALIVE
+from config import OLLAMA_HOST, MODELS, KEEP_ALIVE
 
 client = ollama.Client(host=OLLAMA_HOST)
 
@@ -36,6 +36,21 @@ def ping() -> bool:
         return True
     except Exception:
         return False
+
+
+def list_models() -> list[str]:
+    """Nama semua model yang sudah terpasang di Ollama, urut abjad."""
+    try:
+        res = client.list()
+        items = res.models if hasattr(res, "models") else res["models"]
+        names = []
+        for m in items:
+            name = m.model if hasattr(m, "model") else (m.get("model") or m.get("name"))
+            if name:
+                names.append(name)
+        return sorted(set(names))
+    except Exception:
+        return []
 
 
 def strip_think(text: str) -> str:
@@ -73,7 +88,7 @@ def summarize(history: list[dict]) -> str:
         {"role": "user", "content": transcript},
     ]
     res = client.chat(
-        model=WEB_MODEL,
+        model=MODELS["web"],
         messages=msgs,
         keep_alive=KEEP_ALIVE,
         options={"num_ctx": 2048, "temperature": 0.2},
@@ -111,7 +126,7 @@ def extract_profile(user_text: str) -> dict[str, str]:
     ]
     try:
         res = client.chat(
-            model=WEB_MODEL,
+            model=MODELS["web"],
             messages=msgs,
             keep_alive=KEEP_ALIVE,
             options={"num_ctx": 1024, "temperature": 0.0, "num_predict": 80},

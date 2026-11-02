@@ -10,7 +10,8 @@ try:
 except ImportError:  # paket lama
     from duckduckgo_search import DDGS
 
-from config import CACHE_TTL, SEARCH_RESULTS, PAGE_CHARS
+import config
+from config import CACHE_TTL, SEARCH_RESULTS
 from memory import Memory
 
 UA = {"User-Agent": "Mozilla/5.0 (Vesper-Agent)"}
@@ -53,11 +54,13 @@ def search(query: str, mem: Memory, n: int = SEARCH_RESULTS) -> tuple[list[dict]
     return [], "gagal"
 
 
-def fetch_text(url: str, mem: Memory, max_chars: int = PAGE_CHARS) -> str:
+def fetch_text(url: str, mem: Memory, max_chars: int | None = None) -> str:
+    """Ambil teks halaman. Panjang default mengikuti mode performa saat ini."""
+    limit = max_chars or config.PAGE_CHARS
     key = f"page:{url}"
     cached = mem.cache_get(key, CACHE_TTL)
     if cached:
-        return cached[:max_chars]
+        return cached[:limit]
     try:
         r = httpx.get(url, headers=UA, timeout=8, follow_redirects=True)
         r.raise_for_status()
@@ -66,10 +69,10 @@ def fetch_text(url: str, mem: Memory, max_chars: int = PAGE_CHARS) -> str:
             tag.decompose()
         text = " ".join(soup.get_text(" ").split())
         mem.cache_put(key, text[:5000])
-        return text[:max_chars]
+        return text[:limit]
     except Exception:
         fallback = mem.cache_get_any(key)
-        return fallback[:max_chars] if fallback else ""
+        return fallback[:limit] if fallback else ""
 
 
 def web_context(query: str, mem: Memory) -> tuple[str, str, list[str], str]:

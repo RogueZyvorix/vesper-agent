@@ -3,7 +3,7 @@ import re
 CODE_RE = re.compile(
     r"(\bdef |\bclass |\bimport |\btraceback\b|\bexception\b|\berror\b|\bbug\b|\bdebug\b|"
     r"\bkode\b|\bcode\b|\bcoding\b|\bscript\b|\bskrip\b|\bprogram\b|\bprogramming\b|"
-    r"\bfunction\b|\bfungsi\b|\bvariabel\b|\bvariable\b|\bmethod\b|\bclass\b|\bcompile\b|"
+    r"\bfunction\b|\bfungsi\b|\bvariabel\b|\bvariable\b|\bmethod\b|\bcompile\b|"
     r"\bpython\b|\bjavascript\b|\btypescript\b|\bjava\b|\bkotlin\b|\bphp\b|\bgolang\b|"
     r"\bsql\b|\bdatabase\b|\bbash\b|\bshell\b|\bterminal\b|\bcommand\b|\blinux\b|"
     r"\bhtml\b|\bcss\b|\breact\b|\bnode\b|\bnpm\b|\bpip\b|\bdocker\b|\bgit\b|"
