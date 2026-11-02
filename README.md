@@ -57,64 +57,111 @@ Angka di atas perkiraan. Pemakaian nyata tergantung model, jumlah context (`NUM_
 
 ## Instalasi
 
-1. Pasang Ollama, lalu pasang model awal:
+### 1. Pasang Ollama dan model awal
 
-   ```bash
-   ollama pull qwen2.5:1.5b
-   ollama pull deepseek-coder:1.3b
-   ```
-
-2. Clone repo:
-
-   ```bash
-   git clone https://github.com/RogueZyvorix/vesper-agent.git
-   cd vesper-agent
-   ```
-
-3. Pasang paket Python.
-
-   Linux (Ubuntu 24.04 dan turunannya):
-
-   ```bash
-   python3 -m pip install --user --break-system-packages -r requirements.txt
-   ```
-
-   macOS dan Windows:
-
-   ```bash
-   python -m pip install --user -r requirements.txt
-   ```
-
-4. Jalankan:
-
-   ```bash
-   python3 main.py
-   ```
-
-   Di Windows, gunakan `python main.py`.
-
-### Perintah `vesper` dari folder mana pun (opsional, Linux)
+Pasang Ollama dari https://ollama.com, lalu:
 
 ```bash
-mkdir -p ~/.local/bin
-cat > ~/.local/bin/vesper << 'EOF'
-#!/usr/bin/env bash
-exec python3 "$HOME/PATH/KE/vesper-agent/main.py" "$@"
-EOF
-chmod +x ~/.local/bin/vesper
+ollama pull qwen2.5:1.5b
+ollama pull deepseek-coder:1.3b
 ```
 
-Ganti `PATH/KE/vesper-agent` dengan lokasi folder proyekmu, lalu pastikan `~/.local/bin` ada di `PATH`:
+### 2. Clone repo
 
 ```bash
-echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.zshrc   # atau ~/.bashrc
+git clone https://github.com/RogueZyvorix/vesper-agent.git
+cd vesper-agent
 ```
 
-Setelah itu cukup ketik `vesper` atau `vesper -c`.
+### 3a. Instalasi otomatis: Linux dan macOS
 
-## Untuk PC spek rendah
+```bash
+chmod +x install.sh
+./install.sh
+```
 
-Vesper bisa dipakai di laptop atau PC dengan RAM kecil, asalkan model dan pengaturannya disesuaikan.
+Skrip ini membuat lingkungan Python khusus di `~/.vesper-agent`, memasang paket di dalamnya, dan membuat perintah `vesper` di `~/.local/bin`. Tidak ada paket yang dipasang ke Python sistem.
+
+Kalau muncul pesan untuk menambahkan PATH, jalankan perintah yang ditampilkan, lalu buka terminal baru.
+
+Di Ubuntu/Debian, kalau venv gagal dibuat, pasang dulu:
+
+```bash
+sudo apt install python3-venv
+```
+
+### 3b. Instalasi otomatis: Windows
+
+Buka PowerShell di folder proyek, lalu:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\install.ps1
+```
+
+Buka PowerShell atau CMD baru setelah instalasi, lalu ketik `vesper`.
+
+Installer membutuhkan Python dari python.org dengan opsi **Add python.exe to PATH** sudah dicentang. Versi dari Microsoft Store kadang tidak bisa dipakai installer.
+
+### 3c. Instalasi manual (untuk pengembangan)
+
+Kalau ingin menjalankan langsung dari folder proyek tanpa installer:
+
+```bash
+python3 -m pip install --user --break-system-packages -r requirements.txt   # Ubuntu 24.04
+python3 -m pip install --user -r requirements.txt                           # macOS dan lainnya
+python3 main.py
+```
+
+Di Windows, gunakan `python` atau `py` sebagai pengganti `python3`:
+
+```powershell
+python -m pip install --user -r requirements.txt
+python main.py
+```
+
+## Menjalankan
+
+```bash
+vesper            # sesi baru
+vesper -c         # lanjutkan sesi terakhir
+vesper --version  # tampilkan versi
+```
+
+## Uninstall
+
+```bash
+vesper uninstall            # hapus aplikasi, data chat tetap ada
+vesper uninstall --purge    # hapus aplikasi dan semua data (chat, profil, sesi, pengaturan model)
+vesper uninstall -y         # tanpa konfirmasi
+```
+
+- `uninstall` menghapus folder `~/.vesper-agent` dan perintah `vesper`.
+- Data di `~/.localagent` tidak dihapus kecuali pakai `--purge`.
+- Folder proyek yang kamu clone tidak dihapus. Hapus manual kalau sudah tidak dipakai.
+- Di Windows, PATH pengguna juga dibersihkan. Di Linux dan macOS, baris `export PATH` yang ditambahkan installer tetap ada dan bisa dihapus manual dari `~/.zshrc` atau `~/.bashrc`.
+
+## Update
+
+```bash
+cd vesper-agent
+git pull
+./install.sh          # Linux/macOS
+```
+
+Di Windows jalankan `install.ps1` lagi. Installer menimpa salinan aplikasi, tapi data di `~/.localagent` tidak tersentuh.
+
+Saat mengembangkan kode, jalankan `python3 main.py` langsung dari folder proyek.
+
+## Model
+
+### Pilih model lewat `/model`
+
+Di dalam aplikasi, ketik `/model`:
+
+1. Pilih peran: `chat`, `homework`, `code`, atau `web`.
+2. Pilih model dari daftar yang sudah terpasang di Ollama.
+
+Pilihan disimpan di `~/.localagent/settings.json` dan tetap berlaku setelah aplikasi ditutup.
 
 ### Pilih model sesuai RAM
 
@@ -126,15 +173,27 @@ Vesper bisa dipakai di laptop atau PC dengan RAM kecil, asalkan model dan pengat
 
 Nama dan ukuran model bisa berubah. Cek di https://ollama.com/search sebelum memasang.
 
-Pasang model kecil dengan:
+### Membuat model sendiri
 
-```bash
-ollama pull qwen2.5:0.5b
+Dari file GGUF, buat `Modelfile`:
+
+```
+FROM ./model-saya.gguf
+PARAMETER num_ctx 4096
+SYSTEM "Kamu asisten yang ringkas dan berbahasa Indonesia."
 ```
 
-Lalu pilih lewat `/model`, atau edit `~/.localagent/settings.json`.
+Lalu:
 
-### Hemat RAM
+```bash
+ollama create model-saya -f Modelfile
+```
+
+Model itu langsung muncul di `/model`.
+
+## Untuk PC spek rendah
+
+Vesper bisa dipakai di laptop atau PC dengan RAM kecil, asalkan model dan pengaturannya disesuaikan.
 
 1. **Pakai satu model untuk semua peran.** Setiap pergantian model memaksa Ollama memuat ulang model, dan itu paling terasa lambat di PC kecil. Di `/model`, pilih model yang sama untuk `chat`, `homework`, `code`, dan `web`.
 
@@ -154,7 +213,7 @@ Lalu pilih lewat `/model`, atau edit `~/.localagent/settings.json`.
 
 5. **Tutup aplikasi berat** seperti browser dengan banyak tab atau game saat butuh jawaban panjang.
 
-### Contoh `settings.json` untuk PC kecil
+Contoh `settings.json` untuk PC kecil:
 
 ```json
 {
@@ -167,7 +226,7 @@ Lalu pilih lewat `/model`, atau edit `~/.localagent/settings.json`.
 }
 ```
 
-### Cek pemakaian
+Cek pemakaian:
 
 - Linux: `free -h` dan `ollama ps`
 - macOS: Activity Monitor, tab Memory
@@ -175,11 +234,10 @@ Lalu pilih lewat `/model`, atau edit `~/.localagent/settings.json`.
 
 Kolom `SIZE` di `ollama ps` menunjukkan memori yang dipakai model yang sedang dimuat.
 
-### Keterbatasan model kecil
-
-- Model 0,5B dan 1B sering salah memahami instruksi dan kurang lancar berbahasa Indonesia. Untuk pertanyaan penting, periksa ulang jawabannya.
-- Ringkasan sesi dan ekstraksi profil memakai model `web`, jadi kualitasnya ikut turun dengan model kecil.
-- Untuk coding, model 0,5B hanya cocok untuk pertanyaan sederhana. Untuk script yang lebih panjang, gunakan model yang lebih besar.
+Keterbatasan model kecil:
+- Model 0,5B dan 1B sering salah memahami instruksi dan kurang lancar berbahasa Indonesia. Periksa ulang jawaban penting.
+- Ringkasan sesi dan ekstraksi profil memakai model `web`, jadi kualitasnya ikut turun.
+- Untuk coding, model 0,5B hanya cocok untuk pertanyaan sederhana.
 
 ## Perintah
 
@@ -233,38 +291,9 @@ PRESETS = {
 }
 ```
 
-Pilihan dari `/model` disimpan di `~/.localagent/settings.json` dan menimpa nilai awal. Kamu juga bisa mengedit file itu langsung:
-
-```json
-{
-  "models": {
-    "chat": "nama-model-saya",
-    "homework": "qwen2.5:1.5b",
-    "code": "deepseek-coder:1.3b",
-    "web": "qwen2.5:1.5b"
-  }
-}
-```
+Pilihan dari `/model` disimpan di `~/.localagent/settings.json` dan menimpa nilai awal. File itu juga bisa diedit langsung.
 
 `KEEP_ALIVE` hanya berlaku untuk permintaan dari Vesper, sehingga aplikasi lain yang memakai Ollama tidak terpengaruh.
-
-### Membuat model sendiri
-
-Dari file GGUF, buat `Modelfile`:
-
-```
-FROM ./model-saya.gguf
-PARAMETER num_ctx 4096
-SYSTEM "Kamu asisten yang ringkas dan berbahasa Indonesia."
-```
-
-Lalu:
-
-```bash
-ollama create model-saya -f Modelfile
-```
-
-Model itu langsung muncul di `/model`.
 
 ## Lokasi data
 
@@ -274,7 +303,7 @@ Model itu langsung muncul di `/model`.
 | macOS | `/Users/<user>/.localagent/` |
 | Windows | `C:\Users\<user>\.localagent\` |
 
-Di dalamnya ada `agent.db` (riwayat, sesi, profil, dan cache web) dan `settings.json` (pilihan model). Folder ini tidak ada di dalam folder proyek, jadi tidak ikut ter-commit ke GitHub.
+Di dalamnya ada `agent.db` (riwayat, sesi, profil, cache web) dan `settings.json` (pilihan model). Folder ini tidak ada di dalam folder proyek, sehingga tidak ikut ter-commit ke GitHub.
 
 Ubah lokasi dengan `LOCALAGENT_HOME`:
 
@@ -287,7 +316,10 @@ Untuk pindah komputer, salin folder `.localagent` ke lokasi yang sama di kompute
 
 ```
 vesper-agent/
-├── main.py           # entry point: vesper atau vesper -c
+├── install.sh        # instalasi Linux dan macOS
+├── install.ps1       # instalasi Windows
+├── main.py           # entry point: vesper, vesper -c, vesper uninstall
+├── uninstall.py      # logika uninstall
 ├── tui.py            # tampilan TUI, perintah, dan alur chat
 ├── llm.py            # Ollama: daftar model, streaming, ringkasan, profil
 ├── router.py         # pemilihan peran otomatis
@@ -307,6 +339,7 @@ vesper-agent/
 - Scraping hanya membaca halaman statis, bukan halaman yang dibangun dengan JavaScript.
 - Pencarian web bergantung pada DuckDuckGo. Sumbernya tetap perlu dicek.
 - Ekstraksi profil berjalan setelah setiap pesan panjang, sehingga menambah waktu sekitar 1 sampai 3 detik per jawaban.
+- Installer untuk macOS dan Windows belum diuji langsung di perangkat tersebut.
 
 ## Lisensi
 
